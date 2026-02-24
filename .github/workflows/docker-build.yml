@@ -1,4 +1,4 @@
-name: Docker Build and Push to GHCR
+name: Docker Build and Push (Multi-Architecture)
 
 on:
   push:
@@ -28,6 +28,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU（用于 ARM 构建）
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -51,24 +56,39 @@ jobs:
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (Multi-Architecture)
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
+
       - name: Create deployment summary
         if: github.event_name != 'pull_request'
         run: |
-          echo "### 🐳 Docker Image Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### 🐳 Docker Multi-Architecture Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Supported Architectures**:" >> $GITHUB_STEP_SUMMARY
+          echo "- 🖥️ linux/amd64 (x86_64)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 linux/arm64 (ARM 64-bit)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 linux/arm/v7 (ARM 32-bit)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
           echo "**Image**: ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Tags**: " >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Usage**:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
